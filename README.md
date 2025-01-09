@@ -23,7 +23,7 @@ Real-time monitoring application that tracks follower changes of a specific Spot
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/your-username/spotify-tracker.git
+git clone https://github.com/metehanpinarli/Spotify-Tracker.git
 cd spotify-tracker
 ```
 
