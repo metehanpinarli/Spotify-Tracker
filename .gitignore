@@ -7,6 +7,8 @@ node_modules/
 *.json.log
 error_log.txt
 followers_log.json
+error_log.txt
+followers_log.json
 
 # Environment variables
 .env
