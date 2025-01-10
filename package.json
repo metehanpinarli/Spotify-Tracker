@@ -1,7 +1,7 @@
 {
-  "name": "spotify-tracker",
+  "name": "spotify-follower-tracker",
   "version": "1.0.0",
-  "description": "Spotify takipçi takip uygulaması",
+  "description": "Real-time Spotify follower tracking application with SMS notifications",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
@@ -11,7 +11,9 @@
   "keywords": [
     "spotify",
     "tracker",
-    "followers"
+    "followers",
+    "monitoring",
+    "notifications"
   ],
   "author": "",
   "license": "ISC",

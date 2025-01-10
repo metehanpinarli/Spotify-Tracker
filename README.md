@@ -24,8 +24,8 @@ Real-time monitoring application that tracks follower changes of a specific Spot
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/metehanpinarli/Spotify-Tracker.git
-cd spotify-tracker
+git clone https://github.com/metehanpinarli/spotify-follower-tracker.git
+cd spotify-follower-tracker
 ```
 
 2. Install dependencies:
