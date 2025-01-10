@@ -5,17 +5,104 @@ import { spotifyApis, userId, clientToken, spotifyCookie } from '../config/spoti
 let currentApiIndex = 0;
 let fetchFollowersListCurrentToken = null;
 
+// Store rate limit delays for each API
+const apiDelays = new Map();
+
+/**
+ * Sets a delay for a specific API instance based on rate limit response
+ * Adds 2 seconds extra delay as a safety measure
+ * 
+ * @param {SpotifyWebApi} api - The API instance to set delay for
+ * @param {number} retryAfter - Number of seconds to wait before retrying
+ */
+function setApiDelay(api, retryAfter) {
+  // Add 2 seconds extra delay as safety measure
+  const safeRetryAfter = retryAfter + 2;
+  const delayUntil = Date.now() + (safeRetryAfter * 1000);
+  apiDelays.set(api.getClientId(), delayUntil);
+  console.log(`Set delay for API ${api.getClientId()} for ${safeRetryAfter}s (${retryAfter}s + 2s safety) until ${new Date(delayUntil).toISOString()}`);
+}
+
+/**
+ * Checks if an API has an active delay
+ * 
+ * @param {SpotifyWebApi} api - The API instance to check
+ * @returns {Object} Object containing delay status and remaining time
+ */
+function checkApiDelay(api) {
+  const now = Date.now();
+  const delay = apiDelays.get(api.getClientId());
+  
+  if (!delay) {
+    return { hasDelay: false, remainingTime: 0 };
+  }
+
+  const remainingTime = Math.max(0, Math.ceil((delay - now) / 1000));
+  const hasDelay = remainingTime > 0;
+
+  if (!hasDelay) {
+    // Clean up expired delay
+    apiDelays.delete(api.getClientId());
+    console.log(`Delay expired for API ${api.getClientId()}, now available for use`);
+  }
+
+  return { hasDelay, remainingTime };
+}
+
 /**
  * Returns the next available Spotify API instance
- * This function implements a round-robin rotation between multiple API instances
- * to prevent rate limiting issues
+ * This function implements a round-robin rotation between available API instances
+ * and handles rate limiting delays
  * 
  * @returns {SpotifyWebApi} The next Spotify API instance to use
  */
 export function getNextSpotifyApi() {
-  const api = spotifyApis[currentApiIndex];
-  currentApiIndex = (currentApiIndex + 1) % spotifyApis.length;
-  return api;
+  // Get all available APIs without delay
+  const availableApis = [];
+  const delayedApis = [];
+
+  // First, collect all APIs and their delay status
+  for (let i = 0; i < spotifyApis.length; i++) {
+    const api = spotifyApis[i];
+    const { hasDelay, remainingTime } = checkApiDelay(api);
+    
+    if (hasDelay) {
+      delayedApis.push({ api, index: i, remainingTime });
+    } else {
+      availableApis.push({ api, index: i });
+    }
+  }
+
+  // Log only if there are delayed APIs
+  if (delayedApis.length > 0) {
+    console.log('Delayed APIs:', delayedApis.map(({ api, remainingTime }) => 
+      `${api.getClientId()} (${remainingTime}s remaining)`
+    ));
+  }
+
+  if (availableApis.length > 0) {
+    // Find the next available API after the current index
+    const nextAvailable = availableApis.find(({ index }) => index > currentApiIndex);
+    
+    if (nextAvailable) {
+      // Found an available API after current index
+      currentApiIndex = nextAvailable.index;
+      return nextAvailable.api;
+    } else {
+      // No available APIs after current index, wrap around to the first available
+      currentApiIndex = availableApis[0].index;
+      return availableApis[0].api;
+    }
+  }
+
+  // If all APIs have active delays, use the one with shortest remaining delay
+  const shortestDelay = delayedApis.reduce((min, current) => 
+    current.remainingTime < min.remainingTime ? current : min
+  , delayedApis[0]);
+
+  currentApiIndex = shortestDelay.index;
+  console.log(`All APIs delayed, using API ${shortestDelay.api.getClientId()} with shortest delay (${shortestDelay.remainingTime}s)`);
+  return shortestDelay.api;
 }
 
 /**
@@ -112,24 +199,39 @@ export async function fetchFollowersList() {
 /**
  * Retrieves the total number of followers for the target user
  * This function uses the Spotify Web API to get the follower count
+ * Implements backoff-retry strategy for rate limiting
  * 
  * @returns {Promise<number>} Total number of followers
- * @throws {Error} If follower count retrieval fails
+ * @throws {Error} If follower count retrieval fails after all retries
  */
 export async function getFollowersCount() {
   const api = getNextSpotifyApi();
   try {
+    console.log('Requesting from account:', api.getClientId());
     const response = await api.getUser(userId);
-    const followersCount= response.body.followers.total;
-    console.log('currentFollowersCount', followersCount);
-    console.log('requested account:', api.getClientId());
+    const followersCount = response.body.followers.total;
+    console.log('Current followers count:', followersCount);
     return followersCount;
-
   } catch (error) {
+    console.log('Error occurred with account:', api.getClientId());
+    
+    if (error.statusCode === 429) {
+      // Get retry delay from response headers
+      const retryAfter = parseInt(error.headers?.['retry-after']) || 30;
+      console.log(`Rate limited. Retry after ${retryAfter} seconds`);
+      
+      // Set delay for this API
+      setApiDelay(api, retryAfter);
+      
+      // Try again with next available API
+      return getFollowersCount();
+    }
+    
     if (error.statusCode === 401) {
       await refreshAllTokens();
       return getFollowersCount();
     }
+    
     throw error;
   }
 } 
