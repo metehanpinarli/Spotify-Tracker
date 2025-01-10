@@ -8,6 +8,7 @@ Real-time monitoring application that tracks follower changes of a specific Spot
 - Instant SMS notifications for new followers
 - Unfollower tracking
 - Multiple API rotation to bypass rate limits
+- Smart rate limit handling with automatic backoff strategy
 - Detailed logging system
 - Spotify Web API restriction bypass
 
@@ -130,3 +131,13 @@ ISC
 3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request 
+
+## 🔒 Rate Limit Management
+
+The application implements a sophisticated rate limit handling strategy:
+- Automatically detects rate limit responses (HTTP 429)
+- Respects Spotify's `Retry-After` header with additional 2-second safety margin
+- Maintains individual delay timers for each API instance
+- Rotates between available APIs while delayed ones cool down
+- Automatically selects the API with shortest remaining delay when all are rate limited
+- Provides detailed logging of API states and delay periods 
