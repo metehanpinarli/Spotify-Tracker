@@ -120,10 +120,6 @@ The application maintains two types of logs:
 - API Rate Limiting
 - Automated Monitoring
 
-## 📄 License
-
-ISC
-
 ## 🤝 Contributing
 
 1. Fork the repository
